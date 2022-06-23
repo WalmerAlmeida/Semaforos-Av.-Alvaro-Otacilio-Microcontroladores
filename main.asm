@@ -5,17 +5,17 @@
 ; Author : walmer
 ;
 
-.def productHigh = r1
 .def productLow = r0
+.def productHigh = r1
+.def s1 = r3
+.def s2 = r4
+.def s3 = r5
+.def s4 = r6
+.def pedestre = r7
 .def temp = r16
 .def currentState = r17 ;estado atual
 .def count = r18
 .def output = r19
-.def s1 = r20
-.def s2 = r21
-.def s3 = r22
-.def s4 = r23
-.def pedestre = r24
 .cseg
 
 jmp reset
@@ -23,7 +23,7 @@ jmp reset
 jmp OCI1A_Interrupt
 
 #define CLOCK 16.0e6
-#define delayMs 5.0; 5ms
+#define delayMs 4.0; 4ms
 delay5ms:
 	push r22
 	push r21
@@ -95,43 +95,6 @@ OCI1A_Interrupt:
 		lpm s4, z
 		adiw z, 1
 		lpm pedestre, z
-
-		/* transformando dados para ativar os pinos corretos do arduino( porta B() => (11)->base do transistor de cada display(7-segmentos) (1111)->count, 
-		porta D => (111)->semáforo (11111)->base do transistor de cada semáforo(controle))
-		*/
-		//inc output
-		//ldi output, (count&0b1111 |
-		//out PORTB
-
-		
-		//Acendendo o semáforo 1
-		mov output, s1
-		ori output, 0b00001 << 3
-		out PORTD, output
-		rcall delay5ms
-
-		//Acendendo o semáforo 2
-		mov output, s2
-		ori output, 0b00010 << 3
-		out PORTD, output
-		rcall delay5ms
-
-		//Acendendo o semáforo 3
-		mov output, s3
-		ori output, 0b00100 << 3
-		out PORTD, output
-		rcall delay5ms
-
-		//Acendendo o semáforo 4
-		mov output, s4
-		ori output, 0b01000 << 3
-		out PORTD, output
-		rcall delay5ms
-
-		//Acendendo o semáforo de pedestre
-		mov output, pedestre
-		ori output, 0b10000 << 3
-		out PORTD, output
 		
 	ifExit1:
 	
@@ -193,6 +156,44 @@ reset:
 
 	sei
 	main_lp:
+		/* Usando as informações atualizadas dos semáforos, obtidas na interrupção, para inserir nos pinos corretos do arduino( porta B() => (11)->base do transistor de cada display(7-segmentos) (1111)->count, 
+		porta D => (111)->semáforo (11111)->base do transistor de cada semáforo(controle))
+		*/
+		//inc output
+		//ldi output, (count&0b1111 |
+		//out PORTB
+
+		
+		//Acendendo o semáforo 1
+		mov output, s1
+		ori output, 0b00001 << 3
+		out PORTD, output
+		rcall delay5ms
+
+		//Acendendo o semáforo 2
+		mov output, s2
+		ori output, 0b00010 << 3
+		out PORTD, output
+		rcall delay5ms
+
+		//Acendendo o semáforo 3
+		mov output, s3
+		ori output, 0b00100 << 3
+		out PORTD, output
+		rcall delay5ms
+
+		//Acendendo o semáforo 4
+		mov output, s4
+		ori output, 0b01000 << 3
+		out PORTD, output
+		rcall delay5ms
+
+		//Acendendo o semáforo de pedestre
+		mov output, pedestre
+		ori output, 0b10000 << 3
+		out PORTD, output
+		rcall delay5ms
+
 		rjmp main_lp
 
 .cseg

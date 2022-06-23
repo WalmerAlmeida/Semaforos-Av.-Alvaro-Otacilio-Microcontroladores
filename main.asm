@@ -1,5 +1,5 @@
 ;
-; Projeto1(Sem·foros).asm
+; Projeto1(Sem√°foros).asm
 ;
 ; Created: 08/06/2022 11:47:12
 ; Author : walmer
@@ -24,7 +24,7 @@ jmp OCI1A_Interrupt
 
 #define CLOCK 16.0e6
 #define delayMs 4.0; 4ms
-delay5ms:
+delay4ms:
 	push r22
 	push r21
 	push r20
@@ -48,26 +48,28 @@ OCI1A_Interrupt:
 	push r16
 	in r16, SREG
 	push r16
+	push r0
+	push r1
 	
 	inc count
 
-	// temp recebe o tempo da transiÁ„o do estado atual para o prÛximo(carregando da memÛria de programa)
-	ldi zh, high(initialStateTime*2)// multiplica por 2, para transformar o endereÁo ea palavra no endereÁo de byte
+	// temp recebe o tempo da transi√ß√£o do estado atual para o pr√≥ximo(carregando da mem√≥ria de programa)
+	ldi zh, high(initialStateTime*2)// multiplica por 2, para transformar o endere√ßo ea palavra no endere√ßo de byte
 	ldi zl, low(initialStateTime*2)
-	// fazendo uma adiÁ„o do endereÁo "z" com o valor do estado "currentState", que vai indicar a posiÁ„o na memÛria com o valor do tempo de transiÁ„o correto
+	// fazendo uma adi√ß√£o do endere√ßo "z" com o valor do estado "currentState", que vai indicar a posi√ß√£o na mem√≥ria com o valor do tempo de transi√ß√£o correto
 	add zl, currentState
 	ldi temp, 0
 	adc zh, temp
 
 	lpm temp, z
 
-	// caso count == temp, ent„o os sem·foros v„o para o prÛximo estado
+	// caso count == temp, ent√£o os sem√°foros v√£o para o pr√≥ximo estado
 	cp count, temp
 	brne ifExit1
 
 		ldi count, 0
 
-		// Caso currentState == 6 e count == temp, quer dizer que os sem·foros v„o para o primeiro estado novamente, ent„o definimos currentState = 0
+		// Caso currentState == 6 e count == temp, quer dizer que os sem√°foros v√£o para o primeiro estado novamente, ent√£o definimos currentState = 0
 		cpi currentState, 6
 		brne else
 			ldi currentState, 0
@@ -76,10 +78,10 @@ OCI1A_Interrupt:
 			inc currentState
 		endIf:
 
-		// s1, s2, s3, s4 e pedestre recebem o valor referente ‡ cor do sem·foro do estado atual(carregando da memÛria de programa)
-		ldi zh, high(initialStateColor*2)// multiplica por 2, para transformar o endereÁo de palavra no endereÁo de byte
+		// s1, s2, s3, s4 e pedestre recebem o valor referente √† cor do sem√°foro do estado atual(carregando da mem√≥ria de programa)
+		ldi zh, high(initialStateColor*2)// multiplica por 2, para transformar o endere√ßo de palavra no endere√ßo de byte
 		ldi zl, low(initialStateColor*2)
-		// fazendo uma adiÁ„o do endereÁo "z" com o valor do estado "currentState"*5, que vai indicar a posiÁ„o na memÛria com o valor das cores de cada sem·foro
+		// fazendo uma adi√ß√£o do endere√ßo "z" com o valor do estado "currentState"*5, que vai indicar a posi√ß√£o na mem√≥ria com o valor das cores de cada sem√°foro
 		ldi temp, 5
 		mul currentState, temp //multiplica e insere nos registradores r1(productHigh) e r0(productLow)
 		add zl, productLow
@@ -98,6 +100,8 @@ OCI1A_Interrupt:
 		
 	ifExit1:
 	
+	pop r1
+	pop r0
 	pop r16
 	out SREG, r16
 	pop r16
@@ -111,7 +115,7 @@ reset:
 	ldi temp, high(RAMEND)
 	out SPH, temp
 
-	;Output do sem·foro que vai ser transmitido pelos pinos 
+	;Output do sem√°foro que vai ser transmitido pelos pinos 
 	ldi temp, $FF
 	out DDRB, temp
 	out DDRD, temp
@@ -147,60 +151,80 @@ reset:
 	sts TCCR1B, temp ;start counter
 
 	lds r16, TIMSK1
-	sbr r16, 1 <<OCIE1A //Sets specified bits in register Rd(no caso apenas define 1 na posiÁ„o OCIE1A)
+	sbr r16, 1 <<OCIE1A //Sets specified bits in register Rd(no caso apenas define 1 na posi√ß√£o OCIE1A)
 	sts TIMSK1, r16
 
-	// Estado inicial, obs.: iniciamos no ˙ltimo estado faltando 1 segundo para ir para o estado 0.
+	// Estado inicial, obs.: iniciamos no √∫ltimo estado faltando 1 segundo para ir para o estado 0.
 	ldi currentState, 6
 	ldi count, 16
 
 	sei
 	main_lp:
-		/* Usando as informaÁıes atualizadas dos sem·foros, obtidas na interrupÁ„o, para inserir nos pinos corretos do arduino( porta B() => (11)->base do transistor de cada display(7-segmentos) (1111)->count, 
-		porta D => (111)->sem·foro (11111)->base do transistor de cada sem·foro(controle))
+		/* Usando as informa√ß√µes atualizadas dos sem√°foros, obtidas na interrup√ß√£o, para inserir nos pinos corretos do arduino( 
+		porta B => (11)->base do transistor de cada display(7-segmentos) (1111)->count, 
+		porta D => (11111)->base do transistor de cada sem√°foro(controle)) (111)->sem√°foro
 		*/
-		//inc output
-		//ldi output, (count&0b1111 |
-		//out PORTB
 
+		// Adiquirindo os valores do 1¬∫ display de 7-segmentos(dezenas)
+
+		//fazendo um while para adiquirir os valores das dezenas e unidades(output, temp)
+		mov temp, count
+		ldi output, 0
+		rjmp loopTest
+		loop:
+			subi temp, 10 ; temp possui o valor de count no in√≠cio e no final vai ficar com as unidades apenas
+			inc output ; incrementando o valor corespondente as dezenas
+		loopTest:
+			cpi temp, 10
+			brge loop
+
+		ori output, 0b10 << 4 ; determinando que vai acender display das dezenas(ativa HIGH apenas na base do transistor do display das dezenas)
+		out PORTB
+		//rcall delay4ms
+
+		// Adiquirindo os valores do 2¬∫ display de 7-segmentos  
+		mov output, temp ; inserindo os valores das unidades
+		ori output, 0b10 << 4 ; determinando que vai acender display das unidades(ativa HIGH apenas na base do transistor do display das unidades)
+		out PORTB
+		//rcall delay4ms
 		
-		//Acendendo o sem·foro 1
+		//Acendendo o sem√°foro 1
 		mov output, s1
 		ori output, 0b00001 << 3
 		out PORTD, output
-		rcall delay5ms
+		rcall delay4ms
 
-		//Acendendo o sem·foro 2
+		//Acendendo o sem√°foro 2
 		mov output, s2
 		ori output, 0b00010 << 3
 		out PORTD, output
-		rcall delay5ms
+		rcall delay4ms
 
-		//Acendendo o sem·foro 3
+		//Acendendo o sem√°foro 3
 		mov output, s3
 		ori output, 0b00100 << 3
 		out PORTD, output
-		rcall delay5ms
+		rcall delay4ms
 
-		//Acendendo o sem·foro 4
+		//Acendendo o sem√°foro 4
 		mov output, s4
 		ori output, 0b01000 << 3
 		out PORTD, output
-		rcall delay5ms
+		rcall delay4ms
 
-		//Acendendo o sem·foro de pedestre
+		//Acendendo o sem√°foro de pedestre
 		mov output, pedestre
 		ori output, 0b10000 << 3
 		out PORTD, output
-		rcall delay5ms
+		rcall delay4ms
 
 		rjmp main_lp
 
 .cseg
-initialStateTime: // tempos de transiÁ„o para cada estado
-	// Guardando valores de tempo de transiÁ„o entre estados na program memory(.cseg)
-	.db 20, 4, 53, 4, 20, 4, 17, $FF // coloquei $FF no ˙ltimo para quando fazer a leitura, poder pular uma palavra
+initialStateTime: // tempos de transi√ß√£o para cada estado
+	// Guardando valores de tempo de transi√ß√£o entre estados na program memory(.cseg)
+	.db 20, 4, 53, 4, 20, 4, 17, $FF // coloquei $FF no √∫ltimo para quando fazer a leitura, poder pular uma palavra
 initialStateColor:
-	// Guardando cores de cada sem·foro em cada estado(verde = 0b1, amarelo = 0b10, vermelho = 0b100)
-	// 1∫ estado(S1: Vermelho, S2: Verde, S3: Verde, S4: Vermelho, pedestre: Vermelho), ..., 7∫ estado
+	// Guardando cores de cada sem√°foro em cada estado(verde = 0b1, amarelo = 0b10, vermelho = 0b100)
+	// 1¬∫ estado(S1: Vermelho, S2: Verde, S3: Verde, S4: Vermelho, pedestre: Vermelho), ..., 7¬∫ estado
 	.db 0b100, 1, 1, 0b100, 0b100,   0b100, 1, 2, 0b100, 0b100,   0b100, 1, 0b100, 1, 0b100,   0b100, 2, 0b100, 2, 0b100,   1, 0b100, 0b100, 0b100, 0b100,   2, 0b100, 0b100, 0b100, 0b100,   0b100, 0b100, 0b100, 0b100, 1,   $FF

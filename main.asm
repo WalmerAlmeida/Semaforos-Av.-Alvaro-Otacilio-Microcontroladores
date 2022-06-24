@@ -247,7 +247,6 @@ reset:
 		mov output, pedestre
 		ori output, 0b10000 << 3
 		out PORTD, output
-		rcall delay4ms
 
 		rjmp main_lp
 

@@ -16,6 +16,7 @@
 .def currentState = r17 ;estado atual
 .def count = r18
 .def output = r19
+.def currentStateTime = r20
 .cseg
 
 jmp reset
@@ -24,6 +25,7 @@ jmp OCI1A_Interrupt
 
 #define CLOCK 16.0e6
 #define delayMs 4.0; 4ms
+// Essa função aplica um delay de 4 ms
 delay4ms:
 	push r22
 	push r21
@@ -44,32 +46,78 @@ delay4ms:
 
 	ret
 
+// Essa função verifica o tempo de transição entre o estado atual e o próximo estado, e coloca o valor no registrador "currentStateTime" 
+timeToNextState:
+	push r31
+	push r30
+
+	// Carregando o valor da memória de programa, contendo o tempo de transição, no "currentStateTime"
+	ldi zh, high(initialStateTime*2)// multiplica por 2, para transformar o endereço ea palavra no endereço de byte
+	ldi zl, low(initialStateTime*2)
+	// Realizamos a adição do endereço "z" com o valor do estado "currentState", para indicar a posição na memória com o valor do tempo de transição correto
+	add zl, currentState
+	ldi currentStateTime, 0
+	adc zh, currentStateTime
+
+	lpm currentStateTime, z
+
+	pop r30
+	pop r31
+
+	ret
+
+// Essa função atualiza as cores dos registradores de cada semáforo(s1, s2, s3, s4 e pedestre)
+trafficLightColorUpdate:
+	push r31
+	push r30
+	push r16
+	push r0
+	push r1
+
+	// s1, s2, s3, s4 e pedestre recebem o valor referente à cor do semáforo do estado atual(carregando da memória de programa)
+	ldi zh, high(initialStateColor*2)// multiplica por 2, para transformar o endereço de palavra no endereço de byte
+	ldi zl, low(initialStateColor*2)
+	// fazendo uma adição do endereço "z" com o valor do estado "currentState"*5, que vai indicar a posição na memória com o valor das cores de cada semáforo
+	ldi temp, 5
+	mul currentState, temp //multiplica e insere nos registradores r1(productHigh) e r0(productLow)
+	add zl, productLow
+	ldi temp, 0
+	adc zh, temp
+
+	lpm s1, z
+	adiw z, 1
+	lpm s2, z
+	adiw z, 1
+	lpm s3, z
+	adiw z, 1
+	lpm s4, z
+	adiw z, 1
+	lpm pedestre, z
+
+	pop r1
+	pop r0
+	pop r16
+	pop r30
+	pop r31
+
+	ret
+
 OCI1A_Interrupt:
 	push r16
 	in r16, SREG
 	push r16
-	push r0
-	push r1
 	
 	inc count
 
-	// temp recebe o tempo da transição do estado atual para o próximo(carregando da memória de programa)
-	ldi zh, high(initialStateTime*2)// multiplica por 2, para transformar o endereço ea palavra no endereço de byte
-	ldi zl, low(initialStateTime*2)
-	// fazendo uma adição do endereço "z" com o valor do estado "currentState", que vai indicar a posição na memória com o valor do tempo de transição correto
-	add zl, currentState
-	ldi temp, 0
-	adc zh, temp
+	rcall timeToNextState ; chamada da função que registra o tempo necessário para ir ao próximo estado em "currentStateTime"
 
-	lpm temp, z
-
-	// caso count == temp, então os semáforos vão para o próximo estado
-	cp count, temp
+	// caso count == currentStateTime, então os semáforos vão para o próximo estado
+	cp count, currentStateTime
 	brne ifExit1
 
 		ldi count, 0
 
-		// Caso currentState == 6 e count == temp, quer dizer que os semáforos vão para o primeiro estado novamente, então definimos currentState = 0
+		// Caso currentState == 6 e count == currentStateTime, então quer dizer que os semáforos vão para o primeiro estado novamente, então definimos currentState = 0
 		cpi currentState, 6
 		brne else
 			ldi currentState, 0
@@ -78,33 +126,14 @@ OCI1A_Interrupt:
 			inc currentState
 		endIf:
 
-		// s1, s2, s3, s4 e pedestre recebem o valor referente à cor do semáforo do estado atual(carregando da memória de programa)
-		ldi zh, high(initialStateColor*2)// multiplica por 2, para transformar o endereço de palavra no endereço de byte
-		ldi zl, low(initialStateColor*2)
-		// fazendo uma adição do endereço "z" com o valor do estado "currentState"*5, que vai indicar a posição na memória com o valor das cores de cada semáforo
-		ldi temp, 5
-		mul currentState, temp //multiplica e insere nos registradores r1(productHigh) e r0(productLow)
-		add zl, productLow
-		ldi temp, 0
-		adc zh, temp
-
-		lpm s1, z
-		adiw z, 1
-		lpm s2, z
-		adiw z, 1
-		lpm s3, z
-		adiw z, 1
-		lpm s4, z
-		adiw z, 1
-		lpm pedestre, z
+		rcall trafficLightColorUpdate ; chamada da função que atualiza as cores dos semáforos nos registradores "s1", "s2", "s3", "s4" e "pedestre", a partir do "currentState"
 		
 	ifExit1:
 	
-	pop r1
-	pop r0
 	pop r16
 	out SREG, r16
 	pop r16
+
 	reti
 
 
@@ -154,9 +183,10 @@ reset:
 	sbr r16, 1 <<OCIE1A //Sets specified bits in register Rd(no caso apenas define 1 na posição OCIE1A)
 	sts TIMSK1, r16
 
-	// Estado inicial, obs.: iniciamos no último estado faltando 1 segundo para ir para o estado 0.
-	ldi currentState, 6
-	ldi count, 16
+	// Estado inicial
+	ldi currentState, 0
+	ldi count, 0
+	rcall trafficLightColorUpdate ; chamada da função que atualiza as cores dos semáforos nos registradores "s1", "s2", "s3", "s4" e "pedestre", a partir do "currentState"
 
 	sei
 	main_lp:
@@ -167,26 +197,27 @@ reset:
 
 		// Adiquirindo os valores do 1º display de 7-segmentos(dezenas)
 
-		//fazendo um while para adiquirir os valores das dezenas e unidades(output, temp)
-		mov temp, count
+		rcall timeToNextState ; chamada da função que registra o tempo necessário para ir ao próximo estado em "currentStateTime"
+		sub currentStateTime, count ; adiquirindo o tempo restante para o próximo estado
+
+		//fazendo um while para adiquirir os valores das dezenas e unidades(output, currentStateTime)
 		ldi output, 0
 		rjmp loopTest
 		loop:
-			subi temp, 10 ; temp possui o valor de count no início e no final vai ficar com as unidades apenas
+			subi currentStateTime, 10 ; temp possui o valor de count no início e no final vai ficar com as unidades apenas
 			inc output ; incrementando o valor corespondente as dezenas
 		loopTest:
-			cpi temp, 10
+			cpi currentStateTime, 10
 			brge loop
 
-		ori output, 0b10 << 4 ; determinando que vai acender display das dezenas(ativa HIGH apenas na base do transistor do display das dezenas)
-		out PORTB
-		//rcall delay4ms
+		ori output, 0b10 << 4 ; Acendendo o display das dezenas(ativa HIGH apenas na base do transistor do display das dezenas)
+		out PORTB, output
+		rcall delay4ms
 
-		// Adiquirindo os valores do 2º display de 7-segmentos  
-		mov output, temp ; inserindo os valores das unidades
-		ori output, 0b10 << 4 ; determinando que vai acender display das unidades(ativa HIGH apenas na base do transistor do display das unidades)
-		out PORTB
-		//rcall delay4ms
+		// Adiquirindo os valores do 2º display de 7-segmentos(unidades)
+		mov output, currentStateTime ; inserindo os valores das unidades
+		ori output, 0b01 << 4 ; Acendendo o display das unidades(ativa HIGH apenas na base do transistor do display das unidades)
+		out PORTB, output
 		
 		//Acendendo o semáforo 1
 		mov output, s1

@@ -184,13 +184,12 @@ OCI1A_Interrupt:
 
 	rcall timeToNextState ; chamada da função que registra o tempo necessário para ir ao próximo estado em "currentStateTime"
 
+	;-----------------------------------------------------------------------------
 
 	// caso count == currentStateTime, então os semáforos vão para o próximo estado
 	
 	cp count, currentStateTime
-
-	;-----------------------------------------------------------------------------
-
+	
 	brne ifExit1
 
 		ldi count, 0
@@ -211,9 +210,9 @@ OCI1A_Interrupt:
 
 		rcall trafficLightColorUpdate ; chamada da função que atualiza as cores dos semáforos nos registradores "sinal_1", "sinal_2", "sinal_3", "sinal_4" e "pedestre", a partir do "currentState"
 		
-	;-----------------------------------------------------------------------------
-
 	ifExit1:
+	
+	;-----------------------------------------------------------------------------
 	
 	;-----------
 	pop r16
@@ -236,12 +235,12 @@ reset:
 
 	//Output do semáforo que vai ser transmitido pelos pinos 
 	
-		;contola se os pinos são de entrada ou saida
+		; seta os pinos como pinos são de saida
 	ldi temp, $FF
 	out DDRB, temp 
 	out DDRD, temp
 		
-		;->botando 0 em todos os pinos como 0
+		; botando 0 em todos os pinos
 	ldi output, 0
 	out PORTB, output
 	out PORTD, output
@@ -267,17 +266,21 @@ reset:
 	
 	
 	// On MEGA series, write high byte of 16-bit timer registers first
+
 	ldi temp, high(TOP) ;initialize compare value (TOP)
 	sts OCR1AH, temp
 	ldi temp, low(TOP)
 	sts OCR1AL, temp
 	
+
 	ldi temp, ((WGM&0b11) << WGM10) ;lower 2 bits of WGM
 	
 	; WGM&0b11 = 0b0100 & 0b0011 = 0b0000 
+	
 	sts TCCR1A, temp
 	
 	;upper 2 bits of WGM and clock select
+	
 	ldi temp, ((WGM>> 2) << WGM12)|(PRESCALE << CSinal_10)
 	
 			; WGM >> 2 = 0b0100 >> 2 = 0b0001
@@ -291,12 +294,11 @@ reset:
 	sbr r16, 1 <<OCIE1A ; Sets specified bits in register Rd (no caso apenas define 1 na posição OCIE1A)
 	sts TIMSK1, r16
 
-	// Estado inicial
 	ldi currentState, 0
 	ldi count, 0
 	
 	//rjump em uma quantidadde de espaços n mto grande, jump tem dois ciclos eh pra quando repcias de mairo
-	
+
 	
 	//chamada da função que atualiza as cores dos semáforos nos registradores "sinal_1", "sinal_2", "sinal_3", "sinal_4" e "pedestre", a partir do "currentState"
 
@@ -419,3 +421,17 @@ initialStateTime:
 	.db 0b100, 1, 1, 0b100, 0b100,   0b100, 1, 2, 0b100, 0b100,   0b100, 1, 0b100, 1, 0b100,   0b100, 2, 0b100, 2, 0b100,   1, 0b100, 0b100, 0b100, 0b100,(tira essa virgula)
 	
 ;---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+//RASCUNHO
+
+;Transmit byte - blocks until transmit buffer can accept a byte
+;The param, byte to transmit, is in r24
+.def byte_tx = r24
+transmit:
+	lds r17, ucsr0a
+	sbrs r17, udre0		;wait for tx buffer to be emptyrjmp transmit ;not ready yet
+	rjmp transmit
+	sts udr0, byte_tx	;transmit character
+	ret
+.undef byte_tx

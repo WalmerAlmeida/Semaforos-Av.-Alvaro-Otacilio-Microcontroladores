@@ -188,7 +188,7 @@ reset:
 	ldi count, 0
 	rcall trafficLightColorUpdate ; chamada da função que atualiza as cores dos semáforos nos registradores "s1", "s2", "s3", "s4" e "pedestre", a partir do "currentState"
 
-	sei
+	sei // essa instrução ativa a flag global de interrupção
 	main_lp:
 		/* Usando as informações atualizadas dos semáforos, obtidas na interrupção, para inserir nos pinos corretos do arduino( 
 		porta B => (11)->base do transistor de cada display(7-segmentos) (1111)->count, 

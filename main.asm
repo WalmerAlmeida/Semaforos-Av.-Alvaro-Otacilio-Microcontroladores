@@ -2,8 +2,9 @@
 ; Projeto1(Semáforos).asm
 ;
 ; Created: 08/06/2022 11:47:12
-; Author : walmer
 ;
+; Nome dos integrantes : Walmer Almeida, Larissa Duarte, Anderson Rafhael e Arthur Nunes.
+; Período 2021.2
 
 ;---------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -38,18 +39,18 @@
 .cseg ; diz qual memória vai ser utilizada no programa
 jmp reset ; flag que indica onde o programa vai iniciar
 .org OC1Aaddr ; guarda a interrupção (OCI1A_Interrupt) nesse lugar da memória
-jmp OCI1A_Interrupt ; a interrupção é caso o delay passe de 1s, para o programa não ficar em loop infinito
+jmp OCI1A_Interrupt ; a interrupção ocorre quando o delay atingir 1s, para não ficar consumindo ciclos do microcontrolador
 
 ;---------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 #define CLOCK 16.0e6 ; corresponde à frenquência que o arduino UNO funciona
-#define delayMs 4.0  ; (s) serve para que a gente enxergue o led aceso a olho nú
+#define delayMs 3  ; duração do delay da função "delay3ms"
 
 ;---------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-// Essa função aplica um delay de 4 ms
+// Essa função aplica um delay de 3 ms(serve para que a gente enxergue o led aceso a olho nú)
 
-delay4ms:
+delay3ms:
 
 	;-------
 	push r22
@@ -58,7 +59,7 @@ delay4ms:
 	;-------
 
 
-	// Calculando a quantidade  de ciclos de acordo com o valor do delay
+	// Calculando a quantidade de ciclos de acordo com o valor do delay
 
 	ldi r22, byte3(CLOCK * delayMs / (5 * 1000)) ; terceiro byte mais significativo
 	ldi r21, high(CLOCK * delayMs / (5 * 1000))
@@ -87,10 +88,13 @@ timeToNextState:
 	;-------
 	push r31
 	push r30
+
+	push r16
 	;-------
 
 	
-	// Carregando o valor da memória de programa, contendo o tempo de transição, no "currentStateTime"
+	// Carregando o endereço em byte da label "initialStateTime"
+	// obs.: estamos acessando o endereço da memória de programa
 	
 	ldi zh, high(initialStateTime*2)  ; multiplica por 2, para transformar o endereço em palavra no endereço de byte
 	ldi zl, low(initialStateTime*2)
@@ -99,13 +103,15 @@ timeToNextState:
 	// Realizamos a adição do endereço "z" com o valor do estado "currentState", para indicar a posição na memória com o valor do tempo de transição correto
 	
 	add zl, currentState
-	ldi currentStateTime, 0
-	adc zh, currentStateTime
+	ldi temp, 0
+	adc zh, temp
 
 	
 	lpm currentStateTime, z
 
 	;-------
+	pop r16
+
 	pop r30
 	pop r31
 	;-------
@@ -189,7 +195,6 @@ OCI1A_Interrupt:
 	// caso count == currentStateTime, então os semáforos vão para o próximo estado
 	
 	cp count, currentStateTime
-	
 	brne ifExit1
 
 		ldi count, 0
@@ -198,14 +203,11 @@ OCI1A_Interrupt:
 		// Caso currentState == 6 e count == currentStateTime, então quer dizer que os semáforos vão para o primeiro estado novamente, então definimos currentState = 0
 		
 		cpi currentState, 6
-
 		brne else
 			ldi currentState, 0
 			rjmp endIf
-
 		else:
 			inc currentState
-
 		endIf:
 
 		rcall trafficLightColorUpdate ; chamada da função que atualiza as cores dos semáforos nos registradores "sinal_1", "sinal_2", "sinal_3", "sinal_4" e "pedestre", a partir do "currentState"
@@ -213,7 +215,7 @@ OCI1A_Interrupt:
 	ifExit1:
 	
 	;-----------------------------------------------------------------------------
-	
+
 	;-----------
 	pop r16
 	out SREG, r16
@@ -226,6 +228,7 @@ OCI1A_Interrupt:
 
 reset:
 	
+	// inicializando a Pilha
 	;--------------------
 	ldi temp, low(RAMEND)
 	out SPL, temp
@@ -235,12 +238,12 @@ reset:
 
 	//Output do semáforo que vai ser transmitido pelos pinos 
 	
-		; seta os pinos como pinos são de saida
+	; seta os pinos como pinos são de saida
 	ldi temp, $FF
 	out DDRB, temp 
 	out DDRD, temp
 		
-		; botando 0 em todos os pinos
+	; botando 0 em todos os pinos
 	ldi output, 0
 	out PORTB, output
 	out PORTD, output
@@ -281,7 +284,7 @@ reset:
 	
 	;upper 2 bits of WGM and clock select
 	
-	ldi temp, ((WGM>> 2) << WGM12)|(PRESCALE << CSinal_10)
+	ldi temp, ((WGM>> 2) << WGM12)|(PRESCALE << CS10)
 	
 			; WGM >> 2 = 0b0100 >> 2 = 0b0001
 			; (WGM >> 2) << WGM12 = (0b0001 << 3) = 0b0001000
@@ -296,8 +299,6 @@ reset:
 
 	ldi currentState, 0
 	ldi count, 0
-	
-	//rjump em uma quantidadde de espaços n mto grande, jump tem dois ciclos eh pra quando repcias de mairo
 
 	
 	//chamada da função que atualiza as cores dos semáforos nos registradores "sinal_1", "sinal_2", "sinal_3", "sinal_4" e "pedestre", a partir do "currentState"
@@ -322,31 +323,29 @@ reset:
 		rcall timeToNextState ; chamada da função que registra o tempo necessário para ir ao próximo estado em "currentStateTime"
 		sub currentStateTime, count ; adiquirindo o tempo restante para o próximo estado
 
+		;-----------------------------------------------------------------------------------------------------------------
 
-		//fazendo um while para adiquirir os valores das dezenas e unidades(output, currentStateTime)
+		//fazendo um while para adiquirir os valores das dezenas e unidades("output, currentStateTime", respectivamente)
 
 		ldi output, 0
 		rjmp loopTest
-
-		;-----------------------------------------------------------------------------------------------------------------
 		
 		loop:
 
 			subi currentStateTime, 10 ; temp possui o valor de count no início e no final vai ficar apenas com as unidades 
 			inc output ; incrementando o valor corespondente as dezenas
-		
-		;-----------------------------------------------------------------------------------------------------------------
 
 		loopTest:
 
 			cpi currentStateTime, 10
-			brge loop
+			brge loop ; while(currentStateTime >= 10) {executo o "loop"}
 
 		;-----------------------------------------------------------------------------------------------------------------
 
 		ori output, 0b10 << 4 ; Acendendo o display das dezenas(ativa HIGH apenas na base do transistor do display das dezenas)
 		out PORTB, output
-		rcall delay4ms
+		rcall delay3ms
+		rcall delay3ms
 
 		// Adiquirindo os valores do 2º display de 7-segmentos(unidades)
 
@@ -356,43 +355,47 @@ reset:
 
 		;-------------------------
 		
-			//Acendendo o semáforo 1
+		//Acendendo o semáforo 1
 
 		mov output, sinal_1
 		ori output, 0b00001 << 3
+		/* 
+		Exemplo: s1 = 010, então "ori output, 0b00001 << 3" indica que 
+		output = 00001010, em que (00001)-> valor da base do transistor que vai fechar o circuito do semáforo s1 (010)-> cor do semáforo
+		*/
 		out PORTD, output
-		rcall delay4ms
+		rcall delay3ms
 
 		;-------------------------
 
-		/	/Acendendo o semáforo 2
+		//Acendendo o semáforo 2
 
 		mov output, sinal_2
 		ori output, 0b00010 << 3
 		out PORTD, output
-		rcall delay4ms
+		rcall delay3ms
 
 		;--------------------------
 		
-			//Acendendo o semáforo 3
+		//Acendendo o semáforo 3
 
 		mov output, sinal_3
 		ori output, 0b00100 << 3
 		out PORTD, output
-		rcall delay4ms
+		rcall delay3ms
 
 		;--------------------------
 
-			//Acendendo o semáforo 4
+		//Acendendo o semáforo 4
 
 		mov output, sinal_4
 		ori output, 0b01000 << 3
 		out PORTD, output
-		rcall delay4ms
+		rcall delay3ms
 
 		;---------------------------
 
-			//Acendendo o semáforo de pedestre
+		//Acendendo o semáforo de pedestre
 
 		mov output, pedestre
 		ori output, 0b10000 << 3
@@ -414,24 +417,11 @@ initialStateTime:
 		// coloquei $FF no último para quando fazer a leitura, poder pular uma palavra initialStateColor:
 	
 	.db 20, 4, 53, 4, 20, 4, 17, $FF 
-	
-		// Guardando cores de cada semáforo em cada estado(verde = 0b1, amarelo = 0b10, vermelho = 0b100)
+
+initialStateColor: 
+		// Guardando cores de cada semáforo em cada estado(verde = 0b1[1], amarelo = 0b10[2], vermelho = 0b100[4])
 		// Ex: 1º estado(Sinal_1: Vermelho, Sinal_2: Verde, Sinal_3: Verde, Sinal_4: Vermelho, pedestre: Vermelho), ..., 7º estado.
 	
-	.db 0b100, 1, 1, 0b100, 0b100,   0b100, 1, 2, 0b100, 0b100,   0b100, 1, 0b100, 1, 0b100,   0b100, 2, 0b100, 2, 0b100,   1, 0b100, 0b100, 0b100, 0b100,(tira essa virgula)
+	.db 0b100, 1, 1, 0b100, 0b100,		0b100, 1, 2, 0b100, 0b100,		0b100, 1, 0b100, 1, 0b100,		0b100, 2, 0b100, 2, 0b100,		1, 0b100, 0b100, 0b100, 0b100,		2, 0b100, 0b100, 0b100, 0b100,		0b100, 0b100, 0b100, 0b100, 1,		$FF
 	
 ;---------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-
-//RASCUNHO
-
-;Transmit byte - blocks until transmit buffer can accept a byte
-;The param, byte to transmit, is in r24
-.def byte_tx = r24
-transmit:
-	lds r17, ucsr0a
-	sbrs r17, udre0		;wait for tx buffer to be emptyrjmp transmit ;not ready yet
-	rjmp transmit
-	sts udr0, byte_tx	;transmit character
-	ret
-.undef byte_tx

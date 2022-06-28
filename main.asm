@@ -200,7 +200,7 @@ reset:
 		rcall timeToNextState ; chamada da função que registra o tempo necessário para ir ao próximo estado em "currentStateTime"
 		sub currentStateTime, count ; adiquirindo o tempo restante para o próximo estado
 
-		//fazendo um while para adiquirir os valores das dezenas e unidades(output, currentStateTime)
+		//fazendo um while para adiquirir os valores das dezenas e unidades("output, currentStateTime", respectivamente)
 		ldi output, 0
 		rjmp loopTest
 		loop:
@@ -208,7 +208,7 @@ reset:
 			inc output ; incrementando o valor corespondente as dezenas
 		loopTest:
 			cpi currentStateTime, 10
-			brge loop
+			brge loop ; while(currentStateTime >= 10) {executo o "loop"}
 
 		ori output, 0b10 << 4 ; Acendendo o display das dezenas(ativa HIGH apenas na base do transistor do display das dezenas)
 		out PORTB, output
@@ -221,7 +221,11 @@ reset:
 		
 		//Acendendo o semáforo 1
 		mov output, s1
-		ori output, 0b00001 << 3
+		ori output, 0b00001 << 3 ; aplicando um "ou" lógico com o valor do "controlador" desse semáforo
+		/* 
+		Exemplo: s1 = 010, então "ori output, 0b00001 << 3" indica que 
+		output = 00001010, em que (00001)-> valor da base do transistor que vai fechar o circuito do semáforo s1 (010)-> cor do semáforo
+		*/
 		out PORTD, output
 		rcall delay4ms
 
